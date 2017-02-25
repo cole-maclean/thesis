@@ -1,4 +1,4 @@
-from math import radians, cos, sin, asin, sqrt
+from math import radians, cos, sin, asin, sqrt,inf
 import json
 import configparser
 import googlemaps
@@ -12,7 +12,9 @@ config.read("config.ini")
 API_key = config['Keys']['google_API']
 gmaps = googlemaps.Client(key=API_key)
 
-
+#Resolution errors in Km lookup table based on geohash string length (ie geohash of length 1 has +/- error if 2500km 
+#source=https://en.wikipedia.org/wiki/Geohash)
+gh_resolution_lookup = [math.inf,2500,630,78,20,2.4,0.61,0.076,0.019] 
 def load_pop_dict():
     with open('populations.json', 'r') as f:
         p_dict = json.load(f)
@@ -80,14 +82,22 @@ def gh_expansion(seed_gh,exp_iters):
             ghs = ghs + geohash.expand(gh)
     return list(set(ghs))
 
-def get_close_ghs(src_hash,lookup_hash_list,gh_precision,exp_iterations,max_haversine):
-    exp_src_hash = gh_expansion(src_hash[0:gh_precision],exp_iterations)
-    if max_haversine == -1:
-        return [gh for gh in lookup_hash_list if gh[0:gh_precision] in exp_src_hash]
-    else:
-        return [gh for gh in lookup_hash_list
+def get_close_ghs(src_hash,lookup_hash_list,max_distance):
+    '''This function takes in a geohash and searches for close geohashes in the supplied geohash lookup list, but filtering out
+       geohashes exceeding the max_distance parameter. For computational efficiency, the list is first filtered using geohash expansions
+       where the resolution is one more then the resolution < the max distance. For example, if the max distance is 1000Km, the resolution
+       with error less than this is 2 (630km) and the selected resolution is 1 more then this: 3(78km). This resolution is then expanded to the
+       max distance, and geohashes not in this expansion list are filtered out. The remaining geohashes are finetuned by calculating the haverstine
+       distance of the remaining geohashes, and filtering out any exceeding the max_distance parameter. '''
+
+    for precision,error in enumerate(gh_resolution_lookup):
+        if error <= max_distance:
+            resolution = precision + 1
+            expansions = math.ceil(max_distance/(gh_resolution_lookup[resolution]*2))
+    exp_src_hash = gh_expansion(src_hash[0:resolution],expansions)
+    return  [gh for gh in lookup_hash_list
                     if gh[0:gh_precision] in exp_src_hash
-                    and haversine(*reverse_GPS(geohash.decode(src_hash)),*reverse_GPS(geohash.decode(gh))) <= max_haversine]
+                    and haversine(*reverse_GPS(geohash.decode(src_hash)),*reverse_GPS(geohash.decode(gh))) <= max_distance]
 
 def get_gh_city(gh):
     with open("google_geocity_cache.json","r") as f:
