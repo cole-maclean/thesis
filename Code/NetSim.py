@@ -6,21 +6,32 @@ from scipy import spatial,stats
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
-def generate_graph_nodes(N,dimensions=2):
+def generate_graph_nodes(N,lamd):
     G = nx.Graph()
+    dimensions = 2
     for node in range(N):
         pos = [random.random() for dim in range(dimensions)]
-        G.add_node(node,pos=pos,weight=random.expovariate(1.0))
+        G.add_node(node,pos=pos,weight=random.expovariate(lamd))
     return G
 
-def build_GTG(G,max_distance,theta):
-    pos_points = list(nx.get_node_attributes(G, 'pos').values())
-    point_tree = spatial.cKDTree(pos_points)
-    potential_edges = point_tree.query_pairs(max_distance, len(pos_points[0]))
-    for edge in potential_edges:
-        link_strength = (G.node[edge[0]]['weight']+G.node[edge[1]]['weight'])
-        if link_strength >= theta:
-            G.add_edge(edge[0],edge[1],weight=link_strength)                         
+def generate_network(N,lamd,R,alpha,theta):
+    #TODO: if R is too large, dont make KDTree
+    base_G = generate_network(N,lamd)
+    pos = nx.get_node_attributes(base_G, 'pos')
+    weight = nx.get_node_attributes(base_G, 'weight')
+    if R == 0:
+        G = nx.geographical_threshold_graph(N,theta,alpha,pos=pos,weight=weight)
+    else:
+        G = base_G.copy()
+        pos_points = list(pos.values())
+        point_tree = spatial.cKDTree(pos_points)
+        potential_edges = point_tree.query_pairs(R, len(pos_points[0]))#len(pos_points[0]) = dimensions of the plane (ie. 2)
+        for edge in potential_edges:
+            dist = np.linalg.norm(edge[0]['pos']-edge[1]['pos'])
+            link_prob = dist**-alpha
+            link_strength = (G.node[edge[0]]['weight']+G.node[edge[1]]['weight'])*link_prob
+            if link_strength >= theta:
+                G.add_edge(edge[0],edge[1],weight=link_strength)                         
     return G
 
 def visualize_GTG(GTG):
