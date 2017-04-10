@@ -16,7 +16,7 @@ def generate_graph_nodes(N,lamd):
 
 def generate_network(N,lamd,R,alpha,theta):
     #TODO: if R is too large, dont make KDTree
-    base_G = generate_network(N,lamd)
+    base_G = generate_graph_nodes(N,lamd)
     pos = nx.get_node_attributes(base_G, 'pos')
     weight = nx.get_node_attributes(base_G, 'weight')
     if R == 0:
@@ -27,22 +27,22 @@ def generate_network(N,lamd,R,alpha,theta):
         point_tree = spatial.cKDTree(pos_points)
         potential_edges = point_tree.query_pairs(R, len(pos_points[0]))#len(pos_points[0]) = dimensions of the plane (ie. 2)
         for edge in potential_edges:
-            dist = np.linalg.norm(edge[0]['pos']-edge[1]['pos'])
+            dist = np.linalg.norm(np.array(G.node[edge[0]]['pos'])-np.array(G.node[edge[0]]['pos']))
             link_prob = dist**-alpha
             link_strength = (G.node[edge[0]]['weight']+G.node[edge[1]]['weight'])*link_prob
             if link_strength >= theta:
                 G.add_edge(edge[0],edge[1],weight=link_strength)                         
     return G
 
-def visualize_GTG(GTG):
+def visualize_network(G):
     """
     Filename: nx_demo.py
     Authors: John Stachurski and Thomas J. Sargent
     """
-    pos = nx.get_node_attributes(GTG, 'pos')    # Get positions of nodes
+    pos = nx.get_node_attributes(G, 'pos')    # Get positions of nodes
     plt.figure(figsize=(8,8))
-    nx.draw_networkx_edges(GTG, pos, alpha=0.4)
-    nx.draw_networkx_nodes(GTG, pos, nodelist=list(GTG.nodes()),
+    nx.draw_networkx_edges(G, pos, alpha=0.4)
+    nx.draw_networkx_nodes(G, pos, nodelist=list(G.nodes()),
                            node_size=120, alpha=0.5,node_color='blue')
     plt.show()
 
