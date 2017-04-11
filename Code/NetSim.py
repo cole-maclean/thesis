@@ -27,10 +27,10 @@ def generate_network(N,lamd,R,alpha,theta):
         point_tree = spatial.cKDTree(pos_points)
         potential_edges = point_tree.query_pairs(R, len(pos_points[0]))#len(pos_points[0]) = dimensions of the plane (ie. 2)
         for edge in potential_edges:
-            dist = np.linalg.norm(np.array(G.node[edge[0]]['pos'])-np.array(G.node[edge[0]]['pos']))
+            dist = np.linalg.norm(np.array(G.node[edge[0]]['pos'])-np.array(G.node[edge[1]]['pos']))
             link_prob = dist**-alpha
             link_strength = (G.node[edge[0]]['weight']+G.node[edge[1]]['weight'])*link_prob
-            if link_strength >= theta:
+            if link_strength >= theta*N:
                 G.add_edge(edge[0],edge[1],weight=link_strength)                         
     return G
 
@@ -46,28 +46,38 @@ def visualize_network(G):
                            node_size=120, alpha=0.5,node_color='blue')
     plt.show()
 
-def run_sim(N_list,iterations,max_distance_limits,theta_limits,n_jobs):
-    sim_data = Parallel(n_jobs=n_jobs)(delayed(simulation)(N,max_distance_limits,theta_limits,i) 
+def run_sim(N,lamd,R_limits,alpha_limits,theta_limits,iterations,n_jobs):
+    sim_data = Parallel(n_jobs=n_jobs)(delayed(simulation)(N,lamd,R_limits,alpha_limits,theta_limits,i) 
                                                                             for i in range(iterations)
-                                                                            for N in N_list)
-                                                                        
+                                                                        )                                              
     return sim_data
 
-def simulation(N,max_distance_limits,theta_limits,i):
-    print('Running iteration ' + str(i) + ' for ' + str(N) + ' nodes')
-    alpha=0
-    G = generate_graph_nodes(N)
-    max_distance = random.uniform(max_distance_limits[0], max_distance_limits[1])
-    theta = random.uniform(theta_limits[0], theta_limits[1])*N
-    sim_GTG = build_GTG(G,max_distance,theta)
-    K = sim_GTG.number_of_edges()
+def simulation(N,lamd,R_limits,alpha_limits,theta_limits,i):
+    removal_percent = 0.01
+    R = random.uniform(R_limits[0], R_limits[1])
+    alpha = random.uniform(alpha_limits[0], alpha_limits[1])
+    theta = random.uniform(theta_limits[0], theta_limits[1])
+    print ("Running Simulation i = %s N = %s lamda = %s R = %s alpha = %s theta = %s " % (i,N,lamd,R,alpha,theta))
+    G = generate_network(N,lamd,R,alpha,theta)
+    K = G.number_of_edges()
     connectivity = 2*K/N
-    mu = np.mean(list(nx.get_node_attributes(sim_GTG, 'weight').values()))
-    comps = sorted([len(G_comp) for G_comp in nx.connected_component_subgraphs(sim_GTG)], reverse=True)
+    mu = np.mean(list(nx.get_node_attributes(G, 'weight').values()))
+    comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
     if len(comps) > 1:
-        first_comp = comps[0]/N
-        second_comp = comps[1]/N
+        first_comp = len(comps[0])/N
+        second_comp = len(comps[1])/N
     else:
-        first_comp = comps[0]/N
-        second_comp = 0       
-    return([N,K,mu,connectivity,max_distance,theta,first_comp,second_comp])
+        first_comp = len(comps[0])/N
+        second_comp = 0
+    diameter = nx.algorithms.diameter(comps[0])
+    big_weight = sum(nx.get_node_attributes(comps[0], 'weight').values())
+    remove_nodes = random.sample(G.nodes(), math.ceil(len(G)*removal_percent))
+    G.remove_nodes_from(remove_nodes)
+    failure_G_comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
+    failure_G_diameter = nx.algorithms.diameter(failure_G_comps[0])
+    failure_G_big_weight = sum(nx.get_node_attributes(failure_G_comps[0], 'weight').values())
+    if big_weight != 0 and failure_G_diameter !=0:
+        robustness = (failure_G_big_weight/big_weight)**2*(diameter/failure_G_diameter)
+    else:
+        robustness = None      
+    return([N,lamd,R,alpha,theta,K,mu,connectivity,first_comp,second_comp,diameter,robustness,removal_percent])
