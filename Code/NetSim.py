@@ -59,7 +59,7 @@ def run_sim(N_list,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,it
     return sim_data
 
 def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
-    removal_percent = 0.1
+    removal_percent = 0.20
     lamd = random.uniform(lamd_limits[0], lamd_limits[1])
     R = random.uniform(R_limits[0], R_limits[1])
     alpha = random.uniform(alpha_limits[0], alpha_limits[1])
@@ -69,7 +69,8 @@ def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
     G = generate_network(N,lamd,R,alpha,theta,beta)
     K = G.number_of_edges()
     connectivity = 2*K/N
-    mu = np.mean(list(nx.get_node_attributes(G, 'weight').values()))
+    weights = nx.get_node_attributes(G, 'weight').values()
+    mu = np.mean(list(weights))
     comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
     if len(comps) > 1:
         first_comp = len(comps[0])/N
@@ -78,12 +79,12 @@ def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
         first_comp = len(comps[0])/N
         second_comp = 0
     diameter = nx.algorithms.diameter(comps[0])
-    big_weight = sum(nx.get_node_attributes(comps[0], 'weight').values())
+    total_weight = sum(weights)
     resilence = []
     for remove_count in range(math.ceil(len(G)*removal_percent)):
         remove_node = random.sample(G.nodes(),1)[0]
         G.remove_node(remove_node)
         failure_G_comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
         failure_G_big_weight = sum(nx.get_node_attributes(failure_G_comps[0], 'weight').values())
-        resilence.append(failure_G_big_weight/big_weight)
+        resilence.append(1-failure_G_big_weight/total_weight)
     return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,second_comp,diameter,resilence,removal_percent])
