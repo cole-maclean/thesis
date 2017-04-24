@@ -1,10 +1,10 @@
+import sys,ast
 import random
 import math
 import igraph
 import networkx as nx
 import numpy as np
 from scipy import spatial,stats
-import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
 def generate_graph_nodes(N,lamd):
@@ -39,15 +39,10 @@ def generate_network(N,lamd,R,alpha,theta,beta):
                 g.add_edge(edge[0],edge[1],weight=link_strength)                         
     return g
 
-def run_sim(N_list,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,iterations,n_jobs):
-    sim_data = Parallel(n_jobs=n_jobs)(delayed(simulation)(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i) 
-                                                                            for i in range(iterations)
-                                                                            for N in N_list
-                                                                        )                                              
-    return sim_data
 
-def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
+def simulation(N_list,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
     removal_percent = 0.05
+    N = random.sample(N_list,1)[0]
     lamd = random.uniform(lamd_limits[0], lamd_limits[1])
     R = random.uniform(R_limits[0], R_limits[1])
     alpha = random.uniform(alpha_limits[0], alpha_limits[1])
@@ -71,3 +66,28 @@ def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
         failure_g_big_weight = sum(g.components().giant().vs['weight'])
         endurance = endurance + (1-failure_g_big_weight/total_weight)*removal_percent/100
     return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,all_comps,diameter,endurance/removal_percent,removal_percent])
+
+def add_sim_data(data_file,new_data):
+    with open(data_file, 'r') as infile:
+        loaded_sim_data = json.load(infile)
+    for el in new_data:
+        loaded_sim_data.append(el)
+    with open(data_file, 'w') as outfile:
+        json.dump(loaded_sim_data, outfile)
+    return loaded_sim_data
+
+if __name__ == '__main__':
+    N_list = ast.literal_eval(sys.argv[1])
+    lamd_limits = ast.literal_eval(sys.argv[2])
+    R_limits = ast.literal_eval(sys.argv[3])
+    alpha_limits = ast.literal_eval(sys.argv[4])
+    theta_limits =  ast.literal_eval(sys.argv[5])
+    beta_limits = ast.literal_eval(sys.argv[6])
+    iterations = ast.literal_eval(sys.argv[7])
+    n_jobs = ast.literal_eval(sys.argv[8])
+    verbose = ast.literal_eval(sys.argv[9])
+    save_file = sys.argv[10]
+    sim_data = Parallel(n_jobs=n_jobs,verbose=verbose)(delayed(simulation)(N_list,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i) 
+                                                                            for i in range(iterations)
+                                                                        )                                              
+    add_sim_data(save_file,sim_data)
