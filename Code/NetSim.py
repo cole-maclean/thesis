@@ -59,7 +59,7 @@ def run_sim(N_list,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,it
     return sim_data
 
 def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
-    removal_percent = 0.20
+    removal_percent = 0.05
     lamd = random.uniform(lamd_limits[0], lamd_limits[1])
     R = random.uniform(R_limits[0], R_limits[1])
     alpha = random.uniform(alpha_limits[0], alpha_limits[1])
@@ -80,11 +80,11 @@ def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
         second_comp = 0
     diameter = nx.algorithms.diameter(comps[0])
     total_weight = sum(weights)
-    resilence = []
-    for remove_count in range(math.ceil(len(G)*removal_percent)):
-        remove_node = random.sample(G.nodes(),1)[0]
-        G.remove_node(remove_node)
+    endurance = 0 
+    for remove_count in range(100):#segment removal of removal_percent of nodes into 100 discrete instances ie. remove (removal_percent/100)*N nodes at a time
+        remove_node = random.sample(G.nodes(),int(removal_percent/100*N))
+        G.remove_nodes_from(remove_node)
         failure_G_comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
         failure_G_big_weight = sum(nx.get_node_attributes(failure_G_comps[0], 'weight').values())
-        resilence.append(1-failure_G_big_weight/total_weight)
-    return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,second_comp,diameter,resilence,removal_percent])
+        endurance = endurance + (1-failure_G_big_weight/total_weight)*removal_percent/100
+    return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,second_comp,diameter,endurance/removal_percent,removal_percent])
