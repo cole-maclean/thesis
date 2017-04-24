@@ -1,5 +1,6 @@
 import random
 import math
+import igraph
 import networkx as nx
 import numpy as np
 from scipy import spatial,stats
@@ -7,49 +8,36 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
 def generate_graph_nodes(N,lamd):
-    G = nx.Graph()
+    g = igraph.Graph()
     dimensions = 2
     for node in range(N):
         pos = [random.random() for dim in range(dimensions)]
-        G.add_node(node,pos=pos,weight=random.expovariate(lamd))
-    return G
+        g.add_vertex(pos=pos,weight=random.expovariate(lamd))
+    return g
 
 def generate_network(N,lamd,R,alpha,theta,beta):
     #theta is a function parameterized by the instantaneous # of edges in the graph, cannot be dynamic for GTGs
     #TODO: if R is too large, dont make KDTree
-    base_G = generate_graph_nodes(N,lamd)
-    pos = nx.get_node_attributes(base_G, 'pos')
-    weight = nx.get_node_attributes(base_G, 'weight')
+    base_g = generate_graph_nodes(N,lamd)
+    pos = base_g.vs['pos']
+    weight = base_g.vs['weight']
     if R == 0:
-        G = nx.geographical_threshold_graph(N,theta,alpha,pos=pos,weight=weight)
+        g = nx.geographical_threshold_graph(N,theta,alpha,pos=pos,weight=weight)
     else:
-        G = base_G.copy()
-        pos_points = list(pos.values())
-        point_tree = spatial.cKDTree(pos_points)
-        potential_edges = point_tree.query_pairs(R, len(pos_points[0]))#len(pos_points[0]) = dimensions of the plane (ie. 2)
+        g = base_g.copy()
+        point_tree = spatial.cKDTree(pos)
+        potential_edges = point_tree.query_pairs(R, 2)#dimensions = 2
         for edge in potential_edges:
-            dist = np.linalg.norm(np.array(G.node[edge[0]]['pos'])-np.array(G.node[edge[1]]['pos']))
+            dist = np.linalg.norm(np.array(g.vs['pos'][edge[0]])-np.array(g.vs['pos'][edge[1]]))
             link_prob = dist**-alpha
-            link_strength = (G.node[edge[0]]['weight']+G.node[edge[1]]['weight'])*link_prob
+            link_strength = (g.vs['weight'][edge[0]]+g.vs['weight'][edge[1]])*link_prob
             if alpha == 0:
-                threshold = theta/(1+beta*G.number_of_edges())
+                threshold = theta/(1+beta*g.ecount())
             else:
-                threshold = N*theta/(1+beta*G.number_of_edges())
+                threshold = N*theta/(1+beta*g.ecount())
             if link_strength >= threshold:
-                G.add_edge(edge[0],edge[1],weight=link_strength)                         
-    return G
-
-def visualize_network(G):
-    """
-    Filename: nx_demo.py
-    Authors: John Stachurski and Thomas J. Sargent
-    """
-    pos = nx.get_node_attributes(G, 'pos')    # Get positions of nodes
-    plt.figure(figsize=(8,8))
-    nx.draw_networkx_edges(G, pos, alpha=0.4)
-    nx.draw_networkx_nodes(G, pos, nodelist=list(G.nodes()),
-                           node_size=120, alpha=0.5,node_color='blue')
-    plt.show()
+                g.add_edge(edge[0],edge[1],weight=link_strength)                         
+    return g
 
 def run_sim(N_list,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,iterations,n_jobs):
     sim_data = Parallel(n_jobs=n_jobs)(delayed(simulation)(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i) 
@@ -66,25 +54,20 @@ def simulation(N,lamd_limits,R_limits,alpha_limits,theta_limits,beta_limits,i):
     theta = random.uniform(theta_limits[0], theta_limits[1])
     beta = random.uniform(beta_limits[0], beta_limits[1])
     print ("Running Simulation i = %s N = %s lamda = %s R = %s alpha = %s theta = %s  beta = %s" % (i,N,lamd,R,alpha,theta,beta))
-    G = generate_network(N,lamd,R,alpha,theta,beta)
-    K = G.number_of_edges()
+    g = generate_network(N,lamd,R,alpha,theta,beta)
+    K = g.ecount()
     connectivity = 2*K/N
-    weights = nx.get_node_attributes(G, 'weight').values()
-    mu = np.mean(list(weights))
-    comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
-    if len(comps) > 1:
-        first_comp = len(comps[0])/N
-        second_comp = len(comps[1])/N
-    else:
-        first_comp = len(comps[0])/N
-        second_comp = 0
-    diameter = nx.algorithms.diameter(comps[0])
+    weights = g.vs['weight']
+    mu = np.mean(weights)
+    comps = g.components()
+    all_comps = [comp/N for comp in comps.sizes()]
+    first_comp = comps.giant().vcount()/N
+    diameter = g.diameter()
     total_weight = sum(weights)
     endurance = 0 
     for remove_count in range(100):#segment removal of removal_percent of nodes into 100 discrete instances ie. remove (removal_percent/100)*N nodes at a time
-        remove_node = random.sample(G.nodes(),int(removal_percent/100*N))
-        G.remove_nodes_from(remove_node)
-        failure_G_comps = sorted(nx.connected_component_subgraphs(G), key = len, reverse=True)
-        failure_G_big_weight = sum(nx.get_node_attributes(failure_G_comps[0], 'weight').values())
-        endurance = endurance + (1-failure_G_big_weight/total_weight)*removal_percent/100
-    return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,second_comp,diameter,endurance/removal_percent,removal_percent])
+        remove_nodes = random.sample(range(g.vcount()),int(removal_percent/100*N))
+        g.delete_vertices(remove_nodes)
+        failure_g_big_weight = sum(g.components().giant().vs['weight'])
+        endurance = endurance + (1-failure_g_big_weight/total_weight)*removal_percent/100
+    return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,all_comps,diameter,endurance/removal_percent,removal_percent])
