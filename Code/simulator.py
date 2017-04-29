@@ -5,37 +5,61 @@ import networkx as nx
 import numpy as np
 from scipy import spatial,stats
 import json
+import tqdm
 
 def generate_graph_nodes(N,lamd):
     g = igraph.Graph()
     dimensions = 2
     for node in range(N):
         pos = [random.random() for dim in range(dimensions)]
-        g.add_vertex(pos=pos,weight=random.expovariate(lamd))
+        if lamd == 0:
+            g.add_vertex(pos=pos,weight=1)
+        else:
+            g.add_vertex(pos=pos,weight=np.random.power(lamd))
     return g
 
+def threshold_edge(g,N,i,j,alpha,theta,beta):
+    dist = np.linalg.norm(np.array(i['pos'])-np.array(j['pos']))
+    link_prob = dist**-alpha
+    link_strength = (i['weight']+j['weight'])*link_prob
+    if alpha == 0:
+        threshold = theta/(1+beta*g.ecount())
+    else:
+        threshold = N*theta/(1+beta*g.ecount())
+    if link_strength >= threshold:
+        return True
+    else:
+        return False
+
 def generate_network(N,lamd,R,alpha,theta,beta):
-    #theta is a function parameterized by the instantaneous # of edges in the graph, cannot be dynamic for GTGs
-    #TODO: if R is too large, dont make KDTree
-    base_g = generate_graph_nodes(N,lamd)
-    pos = base_g.vs['pos']
-    weight = base_g.vs['weight']
+    g = generate_graph_nodes(N,lamd)
+    pos = g.vs['pos']
+    weight = g.vs['weight']
     if R == 0:
         g = nx.geographical_threshold_graph(N,theta,alpha,pos=pos,weight=weight)
-    else:
-        g = base_g.copy()
+    elif R >= math.sqrt(2)/2:
+        #attempting some optimization. If node weight < theta/2, only loop through those with weight > theta/2
+        upper_node_indxs = set([node.index for node in g.vs if node['weight'] >= theta/2])
+        upper_nodes = igraph.VertexSeq(g, upper_node_indxs)
+        for i in g.vs:
+            if i.index in upper_node_indxs:
+                for j in g.vs:
+                    if j.index > i.index:
+                        if threshold_edge(g,N,i,j,alpha,theta,beta):
+                            g.add_edge(i.index,j.index)
+            else:
+                for j in upper_nodes:
+                    if j.index > i.index:
+                        if threshold_edge(g,N,i,j,alpha,theta,beta):
+                            g.add_edge(i.index,j.index)
+    else:      
         point_tree = spatial.cKDTree(pos)
         potential_edges = point_tree.query_pairs(R, 2)#dimensions = 2
         for edge in potential_edges:
-            dist = np.linalg.norm(np.array(g.vs['pos'][edge[0]])-np.array(g.vs['pos'][edge[1]]))
-            link_prob = dist**-alpha
-            link_strength = (g.vs['weight'][edge[0]]+g.vs['weight'][edge[1]])*link_prob
-            if alpha == 0:
-                threshold = theta/(1+beta*g.ecount())
-            else:
-                threshold = N*theta/(1+beta*g.ecount())
-            if link_strength >= threshold:
-                g.add_edge(edge[0],edge[1],weight=link_strength)                         
+            i = g.vs[edge[0]]
+            j = g.vs[edge[1]]
+            if threshold_edge(g,N,i,j,alpha,theta,beta):
+                g.add_edge(i.index,j.index)                        
     return g
 
 def simulation(sim_parameters):
@@ -60,22 +84,49 @@ def simulation(sim_parameters):
         endurance = endurance + (1-failure_g_big_weight/total_weight)*removal_percent/100
     return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,all_comps[0:3],diameter,endurance/removal_percent,removal_percent])
 
-def lower_bound_R(R_limits,iterations,step_size):
+def lower_bound_R(N,R_limits,iterations,max_N,step_size,save_file):
     #R_limits 0 = perc limit, 1 = GC limit
-    for N in R_limits.keys():
-        for i in range(iterations):
-            R_perc = random.uniform(R_limits[N][0]-step_size, R_limits[N][0])
-            sim_parameters = [N,1,R_perc,0,0,0]
-            sim_data = simulation(sim_parameters)
-            if sim_data[8] > 0 and R_perc < R_limits[N][0]: #if non-zero connectivity and new lowerbound
-                R_limits[N][0] = R_perc
-            R_GC = random.uniform(R_limits[N][1]-step_size, R_limits[N][1])
-            sim_parameters = [N,1,R_GC,0,0,0]
-            sim_data = simulation(sim_parameters)
-            if sim_data[9] == 1 and R_GC < R_limits[N][1]: #if non-zero connectivity and new lowerbound
-                R_limits[N][1] = R_GC
-    return R_limits            
+    all_sim_data = []
+    for i in range(iterations):
+        if N == max_N: #only print progress for largest N (slowest loop)
+            print('iteration %s' %i)
+        R_perc = random.uniform(R_limits[0]-step_size, R_limits[0])
+        sim_parameters = [N,1,R_perc,0,0,0]
+        sim_data = simulation(sim_parameters)
+        all_sim_data.append(sim_data)
+        if sim_data[8] > 0 and R_perc < R_limits[0]: #if non-zero connectivity and new lowerbound
+            R_limits[0] = R_perc
+        R_GC = random.uniform(R_limits[1]-step_size, R_limits[1])
+        sim_parameters = [N,1,R_GC,0,0,0]
+        sim_data = simulation(sim_parameters)
+        all_sim_data.append(sim_data)
+        if sim_data[9] == 1 and R_GC < R_limits[1]: #if non-zero connectivity and new lowerbound
+            R_limits[1] = R_GC
+    add_sim_data(save_file,all_sim_data)
+    return R_limits   
 
+def upper_bound_theta(N,theta_limits,iterations,max_N,step_size,save_file):
+    #R_limits 0 = perc limit, 1 = GC limit
+    all_sim_data = []
+    for i in range(iterations):
+        if N == max_N: #only print progress for largest N (slowest loop)
+            print('iteration %s' %i)
+        theta_perc = random.uniform(theta_limits[0], theta_limits[0]+step_size)
+        sim_parameters = [N,1,1,0,theta_perc,0]
+        sim_data = simulation(sim_parameters)
+        all_sim_data.append(sim_data)
+        theta_mu = theta_perc/sim_data[7]
+        if sim_data[8] > 0 and theta_mu > theta_limits[0]: #if non-zero connectivity and new lowerbound
+            theta_limits[0] = theta_mu
+        theta_GC = random.uniform(theta_limits[1], theta_limits[1]+step_size)
+        sim_parameters = [N,1,1,0,theta_GC,0]
+        sim_data = simulation(sim_parameters)
+        all_sim_data.append(sim_data)
+        theta_mu = theta_GC/sim_data[7]
+        if sim_data[9] == 1 and theta_mu > theta_limits[1]: #if non-zero connectivity and new lowerbound
+            theta_limits[1] = theta_mu
+    add_sim_data(save_file,all_sim_data)
+    return theta_limits         
 
 def add_sim_data(data_file,new_data):
     with open(data_file, 'r') as infile:
