@@ -60,6 +60,23 @@ def simulation(sim_parameters):
         endurance = endurance + (1-failure_g_big_weight/total_weight)*removal_percent/100
     return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,all_comps[0:3],diameter,endurance/removal_percent,removal_percent])
 
+def lower_bound_R(R_limits,iterations,step_size):
+    #R_limits 0 = perc limit, 1 = GC limit
+    for N in R_limits.keys():
+        for i in range(iterations):
+            R_perc = random.uniform(R_limits[N][0]-step_size, R_limits[N][0])
+            sim_parameters = [N,1,R_perc,0,0,0]
+            sim_data = simulation(sim_parameters)
+            if sim_data[8] > 0 and R_perc < R_limits[N][0]: #if non-zero connectivity and new lowerbound
+                R_limits[N][0] = R_perc
+            R_GC = random.uniform(R_limits[N][1]-step_size, R_limits[N][1])
+            sim_parameters = [N,1,R_GC,0,0,0]
+            sim_data = simulation(sim_parameters)
+            if sim_data[9] == 1 and R_GC < R_limits[N][1]: #if non-zero connectivity and new lowerbound
+                R_limits[N][1] = R_GC
+    return R_limits            
+
+
 def add_sim_data(data_file,new_data):
     with open(data_file, 'r') as infile:
         loaded_sim_data = json.load(infile)
