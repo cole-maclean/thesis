@@ -24,6 +24,6 @@ if __name__ == '__main__':
                       random.uniform(beta_limits[0], beta_limits[1])] for i in range(iterations)]
     p = mp.Pool(n_jobs)
 
-    for rslt in tqdm.tqdm(p.imap_unordered(simulator.simulation, sim_parameters,chunksize=1), total=len(sim_parameters)):
+    for rslt in tqdm.tqdm(p.imap_unordered(simulator.simulation, sim_parameters,chunksize=1), total=len(sim_parameters),smoothing=0):
         sim_data.append(rslt)  
     simulator.add_sim_data(save_file,sim_data)

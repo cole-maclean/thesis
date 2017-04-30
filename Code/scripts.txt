@@ -1,0 +1,7 @@
+Sims:
+python NetSim.py [1000,2000,3000,4000] [0,5] [0,0.2] [0,0] [0,20] [0,0] 10 6 5 "C:/Users/macle/Desktop/UPC Masters/Semester 3/Thesis/Simulation_Data/TRGG_power.json"
+
+R_bound:
+python R_bound.py [100,500,1000,1500,2000,2500,3000,3500,4000,4500,5000] 100 4 "C:/Users/macle/Desktop/UPC Masters/Semester 3/Thesis/Simulation_Data/TRGG_power.json"
+theta_bound:
+python theta_bound.py [1000] [5,30] 5 1 6 "C:/Users/macle/Desktop/UPC Masters/Semester 3/Thesis/Simulation_Data/TRGG_power.json"
