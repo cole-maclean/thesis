@@ -19,8 +19,11 @@ def generate_graph_nodes(N,lamd):
     return g
 
 def threshold_edge(g,N,i,j,alpha,theta,beta):
-    dist = np.linalg.norm(np.array(i['pos'])-np.array(j['pos']))
-    link_prob = dist**-alpha
+    if alpha == 0:
+        link_prob = 1
+    else:
+        dist = np.linalg.norm(np.array(i['pos'])-np.array(j['pos']))
+        link_prob = dist**-alpha
     link_strength = (i['weight']+j['weight'])*link_prob
     if beta == 0:
         threshold = theta
@@ -93,7 +96,7 @@ def lower_bound_R(N,R_limit,iterations,max_N,save_file):
     for i in range(iterations):
         if N == max_N: #only print progress for largest N (slowest loop)
             print('iteration %s' %i)
-        R_GC = random.uniform(R_limit*0.99, R_limit)
+        R_GC = random.uniform(R_limit*0.999, R_limit)
         sim_parameters = [int(N),3,R_GC,0,0,0]
         sim_data = simulation(sim_parameters)
         all_sim_data.append(sim_data)
@@ -105,8 +108,8 @@ def upper_bound_theta(sim_parameters):
     N,R,theta_limit,iterations,save_file = sim_parameters
     all_sim_data = []
     for i in range(iterations):
-        theta_GC = random.uniform(theta_limit, theta_limit*1.1)
-        sim_parameters = [int(N),3,R,0,theta_GC,0]
+        theta_GC = random.uniform(theta_limit, theta_limit*1.001)
+        sim_parameters = [int(N),3,float(R)/1000,0,theta_GC,0]
         sim_data = simulation(sim_parameters)
         all_sim_data.append(sim_data)
         theta_mu = theta_GC/sim_data[7]
