@@ -60,6 +60,7 @@ class SCNetwork(nx.Graph):
             node_data['lon'] = node_data['GPS'][1]
             node_data['GPS_lon_lat'] = [node_data['lon'],node_data['lat']]
             node_data['population'] = self.SC_population(node_gh)
+            node_data['weight'] = node_data['population']/POP_DICT['total']['population']
             node_data['geohash'] = node_gh
             if util_params:
                 node_data['util_params'] = {self.util_attrbs[i]:util_params[i] for i in range(len(self.util_attrbs))}
