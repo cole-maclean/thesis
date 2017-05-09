@@ -3,6 +3,7 @@ import math
 import igraph
 import networkx as nx
 import numpy as np
+import powerlaw as pl
 from scipy import spatial,stats
 import json
 import tqdm
@@ -15,7 +16,8 @@ def generate_graph_nodes(N,lamd):
         if lamd == 0:
             g.add_vertex(pos=pos,weight=1)
         else:
-            g.add_vertex(pos=pos,weight=np.random.power(lamd))
+            dst = pl.Power_Law(xmin=0.001,xmax=1,parameters=[lamd])
+            g.add_vertex(pos=pos,weight=dst.generate_random(1)[0])
     return g
 
 def threshold_edge(g,N,i,j,alpha,theta,beta):
