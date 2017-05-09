@@ -78,9 +78,14 @@ def simulation(sim_parameters):
     connectivity = 2*K/N
     weights = g.vs['weight']
     mu = np.mean(weights)
+    calc_mu = lamd/(lamd+1)
     comps = g.components()
-    all_comps = [comp/N for comp in comps.sizes()]
-    first_comp = comps.giant().vcount()/N
+    all_comps = sorted([comp/N for comp in comps.sizes()],reverse=True)
+    first_comp = all_comps[0]
+    if len(all_comps) > 1:
+        second_comp = all_comps[1]
+    else:
+        second_comp = 0
     # diameter = g.diameter()
     # total_weight = sum(weights)
     # endurance = 0 
@@ -89,7 +94,7 @@ def simulation(sim_parameters):
     #     g.delete_vertices(remove_nodes)
     #     failure_g_big_weight = sum(g.components().giant().vs['weight'])
     #     endurance = endurance + (1-failure_g_big_weight/total_weight)*removal_percent/100
-    return([N,lamd,R,alpha,theta,beta,K,mu,connectivity,first_comp,all_comps[0:3]])
+    return([N,lamd,R,alpha,theta,beta,K,mu,calc_mu,connectivity,first_comp,second_comp,all_comps[0:3]])
 
 def lower_bound_R(N,R_limit,iterations,max_N,save_file):
     all_sim_data = []
@@ -103,19 +108,6 @@ def lower_bound_R(N,R_limit,iterations,max_N,save_file):
         if sim_data[9] == 1 and R_GC < R_limit:
             R_limit = R_GC
     return [N,R_limit,all_sim_data]  
-
-def upper_bound_theta(sim_parameters):
-    N,R,theta_limit,iterations,save_file = sim_parameters
-    all_sim_data = []
-    for i in range(iterations):
-        theta_GC = random.uniform(theta_limit, theta_limit*1.001)
-        sim_parameters = [int(N),3,float(R)/1000,0,theta_GC,0]
-        sim_data = simulation(sim_parameters)
-        all_sim_data.append(sim_data)
-        theta_mu = theta_GC/sim_data[7]
-        if sim_data[9] == 1 and theta_mu > theta_limit: #if non-zero connectivity and new lowerbound
-            theta_limit = theta_mu
-    return [N,R,theta_limit,all_sim_data]         
 
 def add_sim_data(data_file,new_data):
     with open(data_file, 'r') as infile:

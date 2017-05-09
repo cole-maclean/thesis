@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Tesla Super Charger Network</title>
+
+<style>
+
+.graticule {
+  fill: none;
+  stroke: #777;
+  stroke-width: .5px;
+  stroke-opacity: .5;
+}
+
+.land {
+  fill: steelblue
+}
+
+.boundary {
+  fill: none;
+  stroke: #fff;
+  stroke-width: .5px;
+}
+
+}
+#container {
+  margin:2%;
+  padding:20px;
+  border:2px solid #d0d0d0;
+  border-radius: 5px;
+}
+
+
+div.tooltip { 
+    position: absolute;     
+    text-align: center;     
+    width: 90px;          
+    height: 28px;         
+    padding: 2px;       
+    font: 12px sans-serif;    
+    background: lightsteelblue; 
+    border: 0px;    
+    border-radius: 8px;     
+    pointer-events: none;     
+}
+
+</style>
+<body onload="sizeChange()">
+  <p>
+    <a href="https://lab.beakernotebook.com/publications/c93f91bc-1cc7-11e6-b331-2b7c0d919ca8">The Build Process</a>
+    <label for="nDate" 
+           style="display: inline-block; width: 240px; text-align: right">
+           Date = <span id="nDate-value">..</span>
+    </label>
+    <input type="range" min="-35" max="15" id="nDate" step="1">
+  </p>
+<div id="container"></div>
+
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js'></script>
+
+<script>
+
+var projection = d3.geo.mercator()
+    .center([80, 38])
+    .scale(500)
+    .rotate([-180,0]);
+
+d3.select(window)
+        .on("resize", sizeChange);
+// Define the div for the tooltip
+var div = d3.select("body").append("div") 
+    .attr("class", "tooltip")       
+    .style("opacity", 0);
+
+//initial page load call
+function draw(network_data){
+
+
+  var path = d3.geo.path()
+      .projection(projection);
+
+  var graticule = d3.geo.graticule();
+
+  var svg = d3.select("#container").append("svg")
+            .attr("width", "100%")
+            .append("g");
+
+  svg.append("path")
+      .datum(graticule)
+      .attr("class", "graticule")
+      .attr("d", path);
+
+  var date_slider = d3.select("#nDate")
+                    .on("input", function() {
+                      update(+this.value);
+                    })
+
+    function update(){
+      d3.selectAll(".connection").remove();
+
+      var connection = svg.selectAll(".connection")
+      .data(network_data['links'])
+      .enter().append("g")
+      .attr("class","connection")
+      .append("line")
+      .attr("class","link")
+      .style("stroke","black")
+      .attr("x1", function(d){return projection(d['lon_lat_1'])[0]})
+      .attr("y1", function(d){return projection(d['lon_lat_1'])[1]})
+      .attr("x2", function(d){return projection(d['lon_lat_2'])[0]})
+      .attr("y2", function(d){return projection(d['lon_lat_2'])[1]})
+
+      // connection.exit().remove();
+
+      d3.selectAll(".node").remove();
+
+      var node = svg.selectAll(".node")
+      .data(network_data['nodes'], function(d){ return d.SC_index})
+      .enter().append("g")
+      .attr("class","node")
+      .append("circle")
+      .attr("class","SC")
+      .attr("cx", function (d) {return projection(d['GPS_lon_lat'])[0]; })
+      .attr("cy", function (d) {return projection(d['GPS_lon_lat'])[1]; })
+      .attr("r", "2px")
+      .attr("fill", "red")
+      .on("mouseover", function (d) {
+        d3.select(this)
+        .transition()
+        .duration(300)
+        .attr("r","3px")
+        div.transition()    
+          .duration(200)    
+          .style("opacity", .9)
+          .style("width",(d.Supercharger.length*7.5 + "px"))    
+        div.html(d.Supercharger + "<br>" + d.frm_yearmonth)
+                .style("left", (d3.event.pageX) + "px")   
+                .style("top", (d3.event.pageY - 28) + "px")
+      })
+      .on("mouseout", function (d) {
+        d3.select(this)
+        .transition()
+        .duration(300)
+        .attr("r","2px")
+        div.style("opacity", 0); 
+      })
+
+      
+    }
+
+  //build discipline selection pane
+  function draw_world(error, world) {
+    if (error) throw error;
+
+    svg.insert("path", ".graticule")
+        .datum(topojson.feature(world, world.objects.land))
+        .attr("class", "land")
+        .attr("d", path);
+
+    svg.insert("path", ".graticule")
+        .datum(topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; }))
+        .attr("class", "boundary")
+        .attr("d", path);
+    }
+
+  d3.json("world.json", draw_world)
+  //initial draw call on page load
+  sizeChange()
+  update()
+};
+
+d3.json("tesla_network.json", draw)
+
+function sizeChange() {
+    d3.select("g").attr("transform", "scale(" + $("#container").width()/900 + ")");
+    $("svg").height($("#container").width()*0.618);
+}
+</script>
+</body>
