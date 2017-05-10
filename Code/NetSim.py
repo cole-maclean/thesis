@@ -11,17 +11,19 @@ if __name__ == '__main__':
     alpha_limits = ast.literal_eval(sys.argv[4])
     theta_limits =  ast.literal_eval(sys.argv[5])
     beta_limits = ast.literal_eval(sys.argv[6])
-    iterations = ast.literal_eval(sys.argv[7])
-    n_jobs = ast.literal_eval(sys.argv[8])
-    verbose = ast.literal_eval(sys.argv[9])
-    save_file = sys.argv[10]
+    load_g_file = sys.argv[7]
+    iterations = ast.literal_eval(sys.argv[8])
+    n_jobs = ast.literal_eval(sys.argv[9])
+    verbose = ast.literal_eval(sys.argv[10])
+    save_file = sys.argv[11]
     sim_data = []
     sim_parameters = [[N,
                       lamd,
                       R/1000,
                       random.uniform(alpha_limits[0], alpha_limits[1]),
                       theta/1000,
-                      random.uniform(beta_limits[0], beta_limits[1])]
+                      random.uniform(beta_limits[0], beta_limits[1]),
+                      load_g_file]
                       for lamd in lamd_list
                       for R in range(R_limits[0],R_limits[1],R_limits[2])
                       for theta in range(theta_limits[0],theta_limits[1],theta_limits[2])

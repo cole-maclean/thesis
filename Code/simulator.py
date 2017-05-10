@@ -3,21 +3,18 @@ import math
 import igraph
 import networkx as nx
 import numpy as np
-import powerlaw as pl
 from scipy import spatial,stats
 import json
 import tqdm
+import powerlaw
+import pickle
 
 def generate_graph_nodes(N,lamd):
     g = igraph.Graph()
     dimensions = 2
-    for node in range(N):
-        pos = [random.random() for dim in range(dimensions)]
-        if lamd == 0:
-            g.add_vertex(pos=pos,weight=1)
-        else:
-            dst = pl.Power_Law(xmin=0.001,xmax=1,parameters=[lamd])
-            g.add_vertex(pos=pos,weight=dst.generate_random(1)[0])
+    g.add_vertices(N)
+    g.vs['pos'] = [[random.random() for dim in range(dimensions)] for node in range(N)]
+    g.vs['weight'] = powerlaw.Power_Law(xmin=0.025,parameters=[lamd]).generate_random(N)
     return g
 
 def threshold_edge(g,N,i,j,alpha,theta,beta):
@@ -38,8 +35,23 @@ def threshold_edge(g,N,i,j,alpha,theta,beta):
     else:
         return False
 
-def generate_network(N,lamd,R,alpha,theta,beta):
-    g = generate_graph_nodes(N,lamd)
+def sim_SC_network(g,g_NA,N,R,alpha,theta,beta,model):
+    while g.vcount < N:
+        rnd_node = g_NA.vs[random.sample(range(g_NA.vcount()), 1)[0]]
+        if model = "TRGG":
+            for net_node in g.vs:
+                dist = np.linalg.norm(net_node['pos']-rnd_node['pos'])
+                if dist <= R:
+                    if (net_node['weight'] + rnd_node['weight']) >= theta:
+                        g.add
+
+
+
+
+
+def generate_network(N,lamd,R,alpha,theta,beta,g=None):
+    if g == None:
+        g = generate_graph_nodes(N,lamd)
     pos = g.vs['pos']
     weight = g.vs['weight']
     edges = []
@@ -72,10 +84,16 @@ def generate_network(N,lamd,R,alpha,theta,beta):
     return g
 
 def simulation(sim_parameters):
-    removal_percent = 0.05
-    N,lamd,R,alpha,theta,beta = sim_parameters
+    N,lamd,R,alpha,theta,beta,load_g_file = sim_parameters
     #print ("N = %s lamda = %s R = %s alpha = %s theta = %s  beta = %s" % (N,lamd,R,alpha,theta,beta))
-    g = generate_network(N,lamd,R,alpha,theta,beta)
+    if load_g_file:
+        with open(load_g_file,'rb') as infile:
+            loaded_g = pickle.load(infile)
+        N = loaded_g.vcount()
+        lamd = 0
+        g = generate_network(N,lamd,R,alpha,theta,beta,loaded_g)
+    else:
+        g = generate_network(N,lamd,R,alpha,theta,beta)
     K = g.ecount()
     connectivity = 2*K/N
     weights = g.vs['weight']
@@ -88,14 +106,6 @@ def simulation(sim_parameters):
         second_comp = all_comps[1]
     else:
         second_comp = 0
-    # diameter = g.diameter()
-    # total_weight = sum(weights)
-    # endurance = 0 
-    # for remove_count in range(100):#segment removal of removal_percent of nodes into 100 discrete instances ie. remove (removal_percent/100)*N nodes at a time
-    #     remove_nodes = random.sample(range(g.vcount()),int(removal_percent/100*N))
-    #     g.delete_vertices(remove_nodes)
-    #     failure_g_big_weight = sum(g.components().giant().vs['weight'])
-    #     endurance = endurance + (1-failure_g_big_weight/total_weight)*removal_percent/100
     return([N,lamd,R,alpha,theta,beta,K,mu,calc_mu,connectivity,first_comp,second_comp,all_comps[0:3]])
 
 def lower_bound_R(N,R_limit,iterations,max_N,save_file):
