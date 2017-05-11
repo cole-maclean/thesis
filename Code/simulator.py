@@ -35,7 +35,7 @@ def threshold_edge(g,N,i,j,alpha,theta,beta):
     else:
         return False
 
-def sim_SC_network(g,g_NA,N,R,alpha,theta,beta,model):
+def sim_SC_network(g,g_NA,N,R,theta,distance_distrib,model):
     edges = []
     node_list = [v for v in g_NA.vs]
     random.shuffle(node_list)
@@ -61,7 +61,7 @@ def sim_SC_network(g,g_NA,N,R,alpha,theta,beta,model):
                         edges.append([node.index,current_index])
             elif model == "SRGG":
                 if dist <= R:
-                    link_prob = beta*math.exp(-dist/(math.sqrt(2)*alpha))
+                    link_prob = distance_distrib.integrate_box_1d(dist-0.01,dist+0.01) #prob of linkage within +/-1% of dist
                     if link_prob >= random.random():
                         if add_node == False:
                             add_node = True
@@ -69,7 +69,8 @@ def sim_SC_network(g,g_NA,N,R,alpha,theta,beta,model):
                         else:
                             edges.append([node.index,current_index])
             elif model== "GTG":
-                link_prob = dist**-alpha
+                link_prob = distance_distrib.integrate_box_1d(dist-0.005,dist+0.005) #prob of linkage within +/-1% of dist
+                print(link_prob)
                 if (node['weight'] + rnd_node['weight'])*link_prob >= theta*N:
                     if add_node == False:
                         add_node = True
