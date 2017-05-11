@@ -43,18 +43,41 @@ def sim_SC_network(g,g_NA,N,R,alpha,theta,beta,model):
         current_index = g.vcount()       
         rnd_node = node_list.pop()
         add_node = False
-        if model == "TRGG":
-            for node in g.vs:
-                dist = np.linalg.norm(np.array(node['pos'])-np.array(rnd_node['pos']))
+        for node in g.vs:
+            dist = np.linalg.norm(np.array(node['pos'])-np.array(rnd_node['pos']))
+            if model == "RGG":
                 if dist <= R:
-                    if node['weight'] + rnd_node['weight'] >= theta:
+                    if add_node == False:
+                        add_node = True
+                        edges.append([node.index,current_index])
+                    else:
+                        edges.append([node.index,current_index])
+            elif model == "TRGG":
+                if dist <= R and node['weight'] + rnd_node['weight'] >= theta:
+                    if add_node == False:
+                        add_node = True
+                        edges.append([node.index,current_index])
+                    else:
+                        edges.append([node.index,current_index])
+            elif model == "SRGG":
+                if dist <= R:
+                    link_prob = beta*math.exp(-dist/(math.sqrt(2)*alpha))
+                    if link_prob >= random.random():
                         if add_node == False:
                             add_node = True
                             edges.append([node.index,current_index])
                         else:
                             edges.append([node.index,current_index])
-            if add_node == True:
-                g.add_vertex(pos=rnd_node['pos'],weight=rnd_node['weight'])
+            elif model== "GTG":
+                link_prob = dist**-alpha
+                if (node['weight'] + rnd_node['weight'])*link_prob >= theta*N:
+                    if add_node == False:
+                        add_node = True
+                        edges.append([node.index,current_index])
+                    else:
+                        edges.append([node.index,current_index])
+        if add_node == True:
+            g.add_vertex(pos=rnd_node['pos'],weight=rnd_node['weight'])    
     if edges:
         g.add_edges(edges)
     return g
