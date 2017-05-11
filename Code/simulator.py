@@ -36,18 +36,28 @@ def threshold_edge(g,N,i,j,alpha,theta,beta):
         return False
 
 def sim_SC_network(g,g_NA,N,R,alpha,theta,beta,model):
-    while g.vcount < N:
-        rnd_node = g_NA.vs[random.sample(range(g_NA.vcount()), 1)[0]]
-        if model = "TRGG":
-            for net_node in g.vs:
-                dist = np.linalg.norm(net_node['pos']-rnd_node['pos'])
+    edges = []
+    node_list = [v for v in g_NA.vs]
+    random.shuffle(node_list)
+    while g.vcount() < N and node_list:
+        current_index = g.vcount()       
+        rnd_node = node_list.pop()
+        add_node = False
+        if model == "TRGG":
+            for node in g.vs:
+                dist = np.linalg.norm(np.array(node['pos'])-np.array(rnd_node['pos']))
                 if dist <= R:
-                    if (net_node['weight'] + rnd_node['weight']) >= theta:
-                        g.add
-
-
-
-
+                    if node['weight'] + rnd_node['weight'] >= theta:
+                        if add_node == False:
+                            add_node = True
+                            edges.append([node.index,current_index])
+                        else:
+                            edges.append([node.index,current_index])
+            if add_node == True:
+                g.add_vertex(pos=rnd_node['pos'],weight=rnd_node['weight'])
+    if edges:
+        g.add_edges(edges)
+    return g
 
 def generate_network(N,lamd,R,alpha,theta,beta,g=None):
     if g == None:
