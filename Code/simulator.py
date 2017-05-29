@@ -6,18 +6,27 @@ import numpy as np
 from scipy import spatial,stats
 import json
 import tqdm
-import powerlaw
+from scipy.stats import pareto, expon
 import pickle
 
-def generate_graph_nodes(N,lamd):
+def generate_graph_nodes(N,dist_args):
+    #TODO: allow for power and exp distributions
     g = igraph.Graph()
     dimensions = 2
     g.add_vertices(N)
     g.vs['pos'] = [[random.random() for dim in range(dimensions)] for node in range(N)]
-    g.vs['weight'] = powerlaw.Power_Law(xmin=0.025,parameters=[lamd]).generate_random(N)
+    if dist_args[0] == None:
+        weights = [0 for dummy in range(N)]
+    elif dist_args[0] == 'pareto':
+        weights = pareto.rvs(dist_args[1],size=N)
+    elif dist_args[0] == 'exp':
+        weights = expon.rvs(scale=(1/dist_args[1]),size=N)
+    g.vs['weight'] = weights
     return g
 
 def threshold_edge(g,N,i,j,alpha,theta,beta):
+    if theta == 0:
+        return True
     if alpha == 0:
         link_prob = 1
     else:
@@ -35,7 +44,7 @@ def threshold_edge(g,N,i,j,alpha,theta,beta):
     else:
         return False
 
-def sim_SC_network(g,g_NA,N,R,theta,distance_distrib,model):
+def sim_SC_network(g,g_NA,N,R,theta,distance_distrib,model,nodes_only = False):
     edges = []
     node_list = [v for v in g_NA.vs]
     random.shuffle(node_list)
@@ -47,45 +56,57 @@ def sim_SC_network(g,g_NA,N,R,theta,distance_distrib,model):
             dist = np.linalg.norm(np.array(node['pos'])-np.array(rnd_node['pos']))
             if model == "RGG":
                 if dist <= R:
-                    if add_node == False:
+                    if nodes_only:
+                        add_node = True
+                        break
+                    elif add_node == False:
                         add_node = True
                         edges.append([node.index,current_index])
                     else:
                         edges.append([node.index,current_index])
             elif model == "TRGG":
                 if dist <= R and node['weight'] + rnd_node['weight'] >= theta:
-                    if add_node == False:
+                    if nodes_only:
+                        add_node = True
+                        break
+                    elif add_node == False:
                         add_node = True
                         edges.append([node.index,current_index])
                     else:
                         edges.append([node.index,current_index])
             elif model == "SRGG":
                 if dist <= R:
-                    link_prob = distance_distrib.integrate_box_1d(dist-0.01,dist+0.01) #prob of linkage within +/-1% of dist
+                    link_prob = distance_distrib.integrate_box_1d(dist-0.005,dist+0.005) #prob of linkage within +/-1% of dist
                     if link_prob >= random.random():
-                        if add_node == False:
+                        if nodes_only:
+                            add_node = True
+                            break
+                        elif add_node == False:
                             add_node = True
                             edges.append([node.index,current_index])
                         else:
                             edges.append([node.index,current_index])
             elif model== "GTG":
-                link_prob = distance_distrib.integrate_box_1d(dist-0.005,dist+0.005) #prob of linkage within +/-1% of dist
-                print(link_prob)
-                if (node['weight'] + rnd_node['weight'])*link_prob >= theta*N:
-                    if add_node == False:
-                        add_node = True
-                        edges.append([node.index,current_index])
-                    else:
-                        edges.append([node.index,current_index])
+                if (node['weight'] + rnd_node['weight']) >= theta:
+                    link_prob = distance_distrib.integrate_box_1d(dist-0.005,dist+0.005) #prob of linkage within +/-1% of dist
+                    if (node['weight'] + rnd_node['weight'])*link_prob >= theta:
+                        if nodes_only:
+                            add_node = True
+                            break
+                        elif add_node == False:
+                            add_node = True
+                            edges.append([node.index,current_index])
+                        else:
+                            edges.append([node.index,current_index])
         if add_node == True:
-            g.add_vertex(pos=rnd_node['pos'],weight=rnd_node['weight'])    
+            g.add_vertex(pos=rnd_node['pos'],weight=rnd_node['weight'],gh=rnd_node['gh'])    
     if edges:
         g.add_edges(edges)
     return g
 
-def generate_network(N,lamd,R,alpha,theta,beta,g=None):
+def generate_network(N,dist_args,R,alpha,theta,beta,g=None):
     if g == None:
-        g = generate_graph_nodes(N,lamd)
+        g = generate_graph_nodes(N,dist_args)
     pos = g.vs['pos']
     weight = g.vs['weight']
     edges = []
@@ -118,21 +139,18 @@ def generate_network(N,lamd,R,alpha,theta,beta,g=None):
     return g
 
 def simulation(sim_parameters):
-    N,lamd,R,alpha,theta,beta,load_g_file = sim_parameters
-    #print ("N = %s lamda = %s R = %s alpha = %s theta = %s  beta = %s" % (N,lamd,R,alpha,theta,beta))
+    N,dist_args,R,alpha,theta,beta,load_g_file = sim_parameters
     if load_g_file:
         with open(load_g_file,'rb') as infile:
             loaded_g = pickle.load(infile)
         N = loaded_g.vcount()
-        lamd = 0
-        g = generate_network(N,lamd,R,alpha,theta,beta,loaded_g)
+        g = generate_network(N,dist_args,R,alpha,theta,beta,loaded_g)
     else:
-        g = generate_network(N,lamd,R,alpha,theta,beta)
+        g = generate_network(N,dist_args,R,alpha,theta,beta)
     K = g.ecount()
     connectivity = 2*K/N
     weights = g.vs['weight']
     mu = np.mean(weights)
-    calc_mu = lamd/(lamd+1)
     comps = g.components()
     all_comps = sorted([comp/N for comp in comps.sizes()],reverse=True)
     first_comp = all_comps[0]
@@ -140,20 +158,37 @@ def simulation(sim_parameters):
         second_comp = all_comps[1]
     else:
         second_comp = 0
-    return([N,lamd,R,alpha,theta,beta,K,mu,calc_mu,connectivity,first_comp,second_comp,all_comps[0:3]])
+    return([N,R,alpha,theta,beta,K,mu,connectivity,first_comp,second_comp,all_comps[0:3],*dist_args])
 
-def lower_bound_R(N,R_limit,iterations,max_N,save_file):
-    all_sim_data = []
-    for i in range(iterations):
-        if N == max_N: #only print progress for largest N (slowest loop)
-            print('iteration %s' %i)
+def sim_SC_net(sim_parameters):
+    N,R,theta,model = sim_parameters
+    with open('SC_cities.pkl','rb') as infile:
+        loaded_SC = pickle.load(infile)
+    with open('NA_cities.pkl','rb') as infile:
+        NA_g = pickle.load(infile)
+    with open("distance_distrib.pkl","rb") as infile:
+        est_dist = pickle.load(infile)
+    first_SC = loaded_SC.vs[0]
+    seed_g = igraph.Graph()
+    seed_g.add_vertex(pos=first_SC['pos'],weight=first_SC['weight'],gh=first_SC['gh'])
+    result_net = sim_SC_network(seed_g,NA_g,N,R,theta,est_dist,model,True)
+    nodes = [node['gh'] for node in result_net.vs]
+    return [model,nodes]
+
+def lower_bound_R(N,R_limit,unchange_limit,max_N,save_file):
+    unchange_count = 0
+    while unchange_count < unchange_limit:
         R_GC = random.uniform(R_limit*0.999, R_limit)
-        sim_parameters = [int(N),3,R_GC,0,0,0]
+        sim_parameters = [int(N),[None],R_GC,0,0,0,None]
         sim_data = simulation(sim_parameters)
-        all_sim_data.append(sim_data)
-        if sim_data[9] == 1 and R_GC < R_limit:
+        if sim_data[8] == 1 and R_GC < R_limit:
+            print("Update count for N = %s reset at i = %s" %(N,unchange_count)) 
             R_limit = R_GC
-    return [N,R_limit,all_sim_data]  
+            unchange_count = 0
+        else:
+            unchange_count = unchange_count + 1
+    print ("New lower bound for N = %s = %s" %(N,R_limit))
+    return [N,R_limit]  
 
 def add_sim_data(data_file,new_data):
     with open(data_file, 'r') as infile:
