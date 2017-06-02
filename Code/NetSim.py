@@ -21,7 +21,7 @@ if __name__ == '__main__':
                     dist_args,
                     R/10000,
                     random.uniform(alpha_limits[0], alpha_limits[1]),
-                    theta/10,
+                    theta/1000,
                     random.uniform(beta_limits[0], beta_limits[1]),
                     load_g_file]
                     for R in range(R_limits[0],R_limits[1],R_limits[2])

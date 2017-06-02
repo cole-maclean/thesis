@@ -17,7 +17,7 @@ sub_ghs = list(set([gh[0:PENETRATION_GH_PRECISION] for gh in list(POP_DICT.keys(
 sub_pop_dict = {sub_gh:sum([data['population'] for gh,data in POP_DICT.items() if gh[0:PENETRATION_GH_PRECISION] == sub_gh]) for sub_gh in sub_ghs}
 tot_pop = sum(list(sub_pop_dict.values()))
 major_cities = [city_gh for city_gh,data in POP_DICT.items() if data['population'] >= MAJOR_CITY_POP]
-major_cities.remove('total')
+all_total_pop = sum([gh['population'] for gh in POP_DICT.values()])
 
 #extend networkx Graph class with customized methods for SCNetwork class
 class SCNetwork(nx.Graph):
@@ -59,8 +59,12 @@ class SCNetwork(nx.Graph):
             node_data['lat'] = node_data['GPS'][0]
             node_data['lon'] = node_data['GPS'][1]
             node_data['GPS_lon_lat'] = [node_data['lon'],node_data['lat']]
-            node_data['population'] = self.SC_population(node_gh)
-            node_data['weight'] = node_data['population']/POP_DICT['total']['population']
+            if node_gh in POP_DICT.keys():
+                node_data['population'] = POP_DICT[node_gh]['population']
+            else:
+                closest_gh = geo_tools.closest_gh(node_gh,POP_DICT.keys(),3)
+                node_data['population'] = POP_DICT[closest_gh]['population']
+            node_data['weight'] = node_data['population']/all_total_pop
             node_data['geohash'] = node_gh
             if util_params:
                 node_data['util_params'] = {self.util_attrbs[i]:util_params[i] for i in range(len(self.util_attrbs))}
@@ -103,7 +107,7 @@ class SCNetwork(nx.Graph):
         try:
             pop1 = self.node[src_hash]['population']
             pop2 = self.node[connection_hash]['population']
-            return (pop1+pop2)/POP_DICT['total']['population']
+            return (pop1+pop2)/all_total_pop
         except KeyError as e:
             print(e)
             return 0 
@@ -111,7 +115,7 @@ class SCNetwork(nx.Graph):
     #population/geographic tools
     def SC_population(self,node_gh):#function uses geohash precision of 3 (ie radius of 73km) and sums population within this radius
         total_close_pop = (sum([data['population'] for gh,data in POP_DICT.items()
-                    if gh[0:3] in geohash.expand(node_gh[0:3])]))
+                    if gh[0:4] in geohash.expand(node_gh[0:4])]))
         return total_close_pop
 
     #custom defined graph attributes

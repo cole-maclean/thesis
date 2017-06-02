@@ -80,14 +80,20 @@ def gh_expansion(seed_gh,exp_iters):
             ghs = ghs + geohash.expand(gh)
     return list(set(ghs))
 
+def closest_gh(src_hash,lookup_hash_list,gh_precision):
+    close_ghs = get_close_ghs(src_hash,lookup_hash_list,3,1,-1)
+    dist_tup = [(gh,haversine(*reverse_GPS(geohash.decode(src_hash)),*reverse_GPS(geohash.decode(gh)))) for gh in close_ghs]
+    return  min(dist_tup, key = lambda t: t[1])[0]
+
+
 def get_close_ghs(src_hash,lookup_hash_list,gh_precision,exp_iterations,max_haversine):
     exp_src_hash = gh_expansion(src_hash[0:gh_precision],exp_iterations)
     if max_haversine == -1:
-        return [gh for gh in lookup_hash_list if gh[0:gh_precision] in exp_src_hash]
+        return set([gh for gh in lookup_hash_list if gh[0:gh_precision] in exp_src_hash])
     else:
-        return [gh for gh in lookup_hash_list
+        return set([gh for gh in lookup_hash_list
                     if gh[0:gh_precision] in exp_src_hash
-                    and haversine(*reverse_GPS(geohash.decode(src_hash)),*reverse_GPS(geohash.decode(gh))) <= max_haversine]
+                    and haversine(*reverse_GPS(geohash.decode(src_hash)),*reverse_GPS(geohash.decode(gh))) <= max_haversine])
 
 def get_gh_city(gh):
     with open("google_geocity_cache.json","r") as f:

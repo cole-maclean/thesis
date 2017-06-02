@@ -46,7 +46,7 @@ def threshold_edge(g,N,i,j,alpha,theta,beta):
 
 def sim_SC_network(g,g_NA,N,R,theta,distance_distrib,model,nodes_only = False):
     edges = []
-    node_list = [v for v in g_NA.vs]
+    node_list = [v for v in g_NA.vs if v['gh'] not in g.vs['gh']]
     random.shuffle(node_list)
     while g.vcount() < N and node_list:
         current_index = g.vcount()       
@@ -98,6 +98,10 @@ def sim_SC_network(g,g_NA,N,R,theta,distance_distrib,model,nodes_only = False):
                             edges.append([node.index,current_index])
                         else:
                             edges.append([node.index,current_index])
+            elif model == "random":
+                if random.random() <= 0.5:
+                    add_node = True
+                    break
         if add_node == True:
             g.add_vertex(pos=rnd_node['pos'],weight=rnd_node['weight'],gh=rnd_node['gh'])    
     if edges:
@@ -175,10 +179,10 @@ def sim_SC_net(sim_parameters):
     nodes = [node['gh'] for node in result_net.vs]
     return [model,nodes]
 
-def lower_bound_R(N,R_limit,unchange_limit,max_N,save_file):
+def lower_bound_R(N,R_limit,unchange_limit):
     unchange_count = 0
     while unchange_count < unchange_limit:
-        R_GC = random.uniform(R_limit*0.999, R_limit)
+        R_GC = random.uniform(R_limit*0.99, R_limit)
         sim_parameters = [int(N),[None],R_GC,0,0,0,None]
         sim_data = simulation(sim_parameters)
         if sim_data[8] == 1 and R_GC < R_limit:
@@ -188,7 +192,22 @@ def lower_bound_R(N,R_limit,unchange_limit,max_N,save_file):
         else:
             unchange_count = unchange_count + 1
     print ("New lower bound for N = %s = %s" %(N,R_limit))
-    return [N,R_limit]  
+    return [N,R_limit]
+
+def upper_bound_theta(N,lamd,R,theta_limit,unchange_limit):
+    unchange_count = 0
+    while unchange_count < unchange_limit:
+        theta_GC = random.uniform(theta_limit, theta_limit*1.01)
+        sim_parameters = [N,['pareto',lamd],float(R),0,theta_GC,0,None]
+        sim_data = simulation(sim_parameters)
+        if sim_data[8] == 1 and theta_GC > theta_limit:
+            print("Update count for R = %s reset at i = %s" %(R,unchange_count)) 
+            theta_limit = theta_GC
+            unchange_count = 0
+        else:
+            unchange_count = unchange_count + 1
+    print ("New upper bound for R = %s = %s" %(R,theta_limit))
+    return [R,theta_limit]   
 
 def add_sim_data(data_file,new_data):
     with open(data_file, 'r') as infile:
